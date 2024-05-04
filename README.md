@@ -1,7 +1,9 @@
 # EEC_289A-HW2
 
 ### Install Python Environment
+```
 pip3 install -r requirements.txt
+```
 
 ### Run texture synthesis
 ```
