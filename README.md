@@ -1,6 +1,6 @@
 # EEC_289A-HW2
 
-### Install Python Environment
+### Install Python Environment (conda w/ Python=3.8)
 ```
 pip3 install -r requirements.txt
 ```
