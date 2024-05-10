@@ -34,7 +34,7 @@ python3 main_mnist.py --sample_dir './mnist' --out_dir './results_mnist' --windo
 * --window_height: The height of the synthesized image
 * --window_width: The width of the synthesized image
 
-### Run concatenated MNIST image synthesis
+### Run concatenated MNIST image synthesis (the result is named "mnist_cat_synthesized.png")
 ```
 python3 main_mnist_cat.py --window_height 256 --window_width 256 --kernel_size 35
 ```
