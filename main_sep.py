@@ -102,8 +102,8 @@ def texture_can_be_synthesized(mask):
     return num_incomplete > 0
 
 
-def initialize_texture_synthesis(original_sample, window_size, kernel_size):
-    sample = original_sample
+def initialize_texture_synthesis(original_sample, window_size, kernel_size, seed_size):
+    sample = cv2.cvtColor(original_sample, cv2.COLOR_BGR2GRAY)
     
     sample = sample.astype(np.float64)
     sample = sample / 255.
@@ -119,14 +119,14 @@ def initialize_texture_synthesis(original_sample, window_size, kernel_size):
     mask = np.zeros((h, w), dtype=np.float64)
 
     sh, sw = original_sample.shape[:2]
-    ih = (sh // 2) - 2
-    iw = (sw // 2) - 2
-    seed = sample[ih:ih+3, iw:iw+3]
+    ih = np.random.randint(sh-seed_size+1)
+    iw = np.random.randint(sw-seed_size+1)
+    seed = sample[ih:ih+seed_size, iw:iw+seed_size]
 
     ph, pw = (h//2)-1, (w//2)-1
-    window[ph:ph+3, pw:pw+3] = seed
-    mask[ph:ph+3, pw:pw+3] = 1
-    result_window[ph:ph+3, pw:pw+3] = original_sample[ih:ih+3, iw:iw+3]
+    window[ph:ph+seed_size, pw:pw+seed_size] = seed
+    mask[ph:ph+seed_size, pw:pw+seed_size] = 1
+    result_window[ph:ph+seed_size, pw:pw+seed_size] = original_sample[ih:ih+seed_size, iw:iw+seed_size]
 
     win = kernel_size//2
     padded_window = cv2.copyMakeBorder(window, 
@@ -140,10 +140,10 @@ def initialize_texture_synthesis(original_sample, window_size, kernel_size):
     return sample, window, mask, padded_window, padded_mask, result_window
 
 
-def synthesize_texture(original_sample, window_size, kernel_size):
+def synthesize_texture(original_sample, window_size, kernel_size, seed_size):
     global gif_count
     (sample, window, mask, padded_window, 
-        padded_mask, result_window) = initialize_texture_synthesis(original_sample, window_size, kernel_size)
+        padded_mask, result_window) = initialize_texture_synthesis(original_sample, window_size, kernel_size, seed_size)
 
     while texture_can_be_synthesized(mask):
         neighboring_indices = get_neighboring_pixel_indices(mask)
@@ -173,13 +173,24 @@ def validate_args(args):
     if wh < 3 or ww < 3:
         raise ValueError('window_size must be greater than or equal to (3,3).')
 
+    if args.kernel_size <= 1:
+        raise ValueError('kernel size must be greater than 1.')
+
+    if args.kernel_size % 2 == 0:
+        raise ValueError('kernel size must be odd.')
+
+    if args.kernel_size > min(wh, ww):
+        raise ValueError('kernel size must be less than or equal to the smaller window_size dimension.')
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Perform texture synthesis')
-    parser.add_argument('--sample_dir', type=str, required=True, help='Path to the texture sample')
+    parser.add_argument('--sample_path', type=str, required=True, help='Path to the texture sample')
     parser.add_argument('--out_dir', type=str, required=False, help='Output path for synthesized texture')
-    parser.add_argument('--window_height', type=int,  required=False, default=28, help='Height of the synthesis window')
-    parser.add_argument('--window_width', type=int, required=False, default=28, help='Width of the synthesis window')
+    parser.add_argument('--window_height', type=int,  required=False, default=256, help='Height of the synthesis window')
+    parser.add_argument('--window_width', type=int, required=False, default=256, help='Width of the synthesis window')
+    parser.add_argument('--kernel_size', type=int, required=False, default=11, help='One dimension of the square synthesis kernel')
+    parser.add_argument('--seed_size', type=int, required=False, default=11, help='One dimension of the square synthesis kernel')
     args = parser.parse_args()
     return args
 
@@ -191,38 +202,14 @@ def main():
     if not os.path.exists(args.out_dir):
         os.mkdir(args.out_dir)
 
-    if not os.path.exists(os.path.join(args.out_dir, 'kernel_5')):
-        os.mkdir(os.path.join(args.out_dir, 'kernel_5'))
-    
-    if not os.path.exists(os.path.join(args.out_dir, 'kernel_11')):
-        os.mkdir(os.path.join(args.out_dir, 'kernel_11'))
-    
-    if not os.path.exists(os.path.join(args.out_dir, 'kernel_15')):
-        os.mkdir(os.path.join(args.out_dir, 'kernel_15'))
-    
-    if not os.path.exists(os.path.join(args.out_dir, 'kernel_23')):
-        os.mkdir(os.path.join(args.out_dir, 'kernel_23'))
+    sample = cv2.imread(args.sample_path)
 
+    synthesized_texture = synthesize_texture(original_sample=sample, 
+                                             window_size=(args.window_height, args.window_width), 
+                                             kernel_size=args.kernel_size,
+                                             seed_size=args.seed_size)
 
-    kernels = [5, 11, 15, 23]
-    image_names = os.listdir(args.sample_dir)
-
-    for kernel in kernels:
-        for image_name in image_names:
-            sample = cv2.imread(os.path.join(args.sample_dir, image_name), cv2.IMREAD_GRAYSCALE)
-
-            synthesized_texture = synthesize_texture(original_sample=sample, 
-                                                    window_size=(args.window_height, args.window_width), 
-                                                    kernel_size=kernel)
-
-            if kernel == 5:
-                cv2.imwrite(os.path.join(args.out_dir, 'kernel_5', image_name), synthesized_texture)
-            elif kernel == 11:
-                cv2.imwrite(os.path.join(args.out_dir, 'kernel_11', image_name), synthesized_texture)
-            elif kernel == 15:
-                cv2.imwrite(os.path.join(args.out_dir, 'kernel_15', image_name), synthesized_texture)
-            elif kernel == 23:
-                cv2.imwrite(os.path.join(args.out_dir, 'kernel_23', image_name), synthesized_texture)
+    cv2.imwrite(os.path.join(args.out_dir, './seed_{}.png'.format(args.seed_size)), synthesized_texture)
 
 
 

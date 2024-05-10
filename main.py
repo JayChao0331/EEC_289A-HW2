@@ -119,14 +119,14 @@ def initialize_texture_synthesis(original_sample, window_size, kernel_size):
     mask = np.zeros((h, w), dtype=np.float64)
 
     sh, sw = original_sample.shape[:2]
-    ih = np.random.randint(sh-3+1)
-    iw = np.random.randint(sw-3+1)
-    seed = sample[ih:ih+3, iw:iw+3]
+    ih = np.random.randint(sh-35+1)
+    iw = np.random.randint(sw-35+1)
+    seed = sample[ih:ih+35, iw:iw+35]
 
     ph, pw = (h//2)-1, (w//2)-1
-    window[ph:ph+3, pw:pw+3] = seed
-    mask[ph:ph+3, pw:pw+3] = 1
-    result_window[ph:ph+3, pw:pw+3] = original_sample[ih:ih+3, iw:iw+3]
+    window[ph:ph+35, pw:pw+35] = seed
+    mask[ph:ph+35, pw:pw+35] = 1
+    result_window[ph:ph+35, pw:pw+35] = original_sample[ih:ih+35, iw:iw+35]
 
     win = kernel_size//2
     padded_window = cv2.copyMakeBorder(window, 
@@ -140,7 +140,7 @@ def initialize_texture_synthesis(original_sample, window_size, kernel_size):
     return sample, window, mask, padded_window, padded_mask, result_window
 
 
-def synthesize_texture(original_sample, window_size, kernel_size, visualize):
+def synthesize_texture(original_sample, window_size, kernel_size):
     global gif_count
     (sample, window, mask, padded_window, 
         padded_mask, result_window) = initialize_texture_synthesis(original_sample, window_size, kernel_size)
@@ -173,24 +173,13 @@ def validate_args(args):
     if wh < 3 or ww < 3:
         raise ValueError('window_size must be greater than or equal to (3,3).')
 
-    if args.kernel_size <= 1:
-        raise ValueError('kernel size must be greater than 1.')
-
-    if args.kernel_size % 2 == 0:
-        raise ValueError('kernel size must be odd.')
-
-    if args.kernel_size > min(wh, ww):
-        raise ValueError('kernel size must be less than or equal to the smaller window_size dimension.')
-
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Perform texture synthesis')
     parser.add_argument('--sample_dir', type=str, required=True, help='Path to the texture sample')
     parser.add_argument('--out_dir', type=str, required=False, help='Output path for synthesized texture')
-    parser.add_argument('--window_height', type=int,  required=False, default=64, help='Height of the synthesis window')
-    parser.add_argument('--window_width', type=int, required=False, default=64, help='Width of the synthesis window')
-    parser.add_argument('--kernel_size', type=int, required=False, default=11, help='One dimension of the square synthesis kernel')
-    parser.add_argument('--visualize', required=False, action='store_true', help='Visualize the synthesis process')
+    parser.add_argument('--window_height', type=int,  required=False, default=256, help='Height of the synthesis window')
+    parser.add_argument('--window_width', type=int, required=False, default=256, help='Width of the synthesis window')
     args = parser.parse_args()
     return args
 
@@ -224,8 +213,7 @@ def main():
 
             synthesized_texture = synthesize_texture(original_sample=sample, 
                                                      window_size=(args.window_height, args.window_width), 
-                                                     kernel_size=kernel, 
-                                                     visualize=args.visualize)
+                                                     kernel_size=kernel)
 
             if kernel == 5:
                 cv2.imwrite(os.path.join(args.out_dir, 'kernel_5', image_name), synthesized_texture)

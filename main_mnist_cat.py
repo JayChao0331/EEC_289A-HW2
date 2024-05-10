@@ -2,6 +2,12 @@ import os
 import argparse
 import cv2
 import numpy as np
+import random
+from PIL import Image
+
+import torch
+import torchvision
+from torchvision import transforms
 
 
 EIGHT_CONNECTED_NEIGHBOR_KERNEL = np.array([[1., 1., 1.],
@@ -173,13 +179,44 @@ def validate_args(args):
     if wh < 3 or ww < 3:
         raise ValueError('window_size must be greater than or equal to (3,3).')
 
+    if args.kernel_size <= 1:
+        raise ValueError('kernel size must be greater than 1.')
+
+    if args.kernel_size % 2 == 0:
+        raise ValueError('kernel size must be odd.')
+
+    if args.kernel_size > min(wh, ww):
+        raise ValueError('kernel size must be less than or equal to the smaller window_size dimension.')
+    
+
+def generate_mnist():
+    print('Reading MNIST images...')
+    image_set = torchvision.datasets.MNIST(root='./', train=False, download=True)
+
+    image_data = []
+    for image, _ in image_set:
+        image_data.append(np.array(image))
+    
+    indices = list(range(len(image_data)))
+    random.shuffle(indices)
+    select_images = [image_data[i] for i in indices[:100]]
+
+    concat_img = np.zeros((280, 280), dtype=np.uint8)
+    pointer = 0
+    for row_id in range(0, 280, 28):
+        for col_id in range(0, 280, 28):
+            concat_img[row_id:row_id+28, col_id:col_id+28] = select_images[pointer]
+            pointer += 1
+    
+    im = Image.fromarray(concat_img)
+    im.save('./mnist_cat.png')
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Perform texture synthesis')
-    parser.add_argument('--sample_dir', type=str, required=True, help='Path to the texture sample')
-    parser.add_argument('--out_dir', type=str, required=False, help='Output path for synthesized texture')
     parser.add_argument('--window_height', type=int,  required=False, default=28, help='Height of the synthesis window')
     parser.add_argument('--window_width', type=int, required=False, default=28, help='Width of the synthesis window')
+    parser.add_argument('--kernel_size', type=int, required=False, default=11, help='One dimension of the square synthesis kernel')
     args = parser.parse_args()
     return args
 
@@ -188,41 +225,16 @@ def main():
     args = parse_args()
     validate_args(args)
 
-    if not os.path.exists(args.out_dir):
-        os.mkdir(args.out_dir)
+    generate_mnist()
 
-    if not os.path.exists(os.path.join(args.out_dir, 'kernel_5')):
-        os.mkdir(os.path.join(args.out_dir, 'kernel_5'))
+    sample = cv2.imread('./mnist_cat.png', cv2.IMREAD_GRAYSCALE)
+    sample = cv2.resize(sample, (128,128), interpolation= cv2.INTER_LINEAR)
+
+    synthesized_texture = synthesize_texture(original_sample=sample, 
+                                             window_size=(args.window_height, args.window_width), 
+                                             kernel_size=args.kernel_size)
     
-    if not os.path.exists(os.path.join(args.out_dir, 'kernel_11')):
-        os.mkdir(os.path.join(args.out_dir, 'kernel_11'))
-    
-    if not os.path.exists(os.path.join(args.out_dir, 'kernel_15')):
-        os.mkdir(os.path.join(args.out_dir, 'kernel_15'))
-    
-    if not os.path.exists(os.path.join(args.out_dir, 'kernel_23')):
-        os.mkdir(os.path.join(args.out_dir, 'kernel_23'))
-
-
-    kernels = [5, 11, 15, 23]
-    image_names = os.listdir(args.sample_dir)
-
-    for kernel in kernels:
-        for image_name in image_names:
-            sample = cv2.imread(os.path.join(args.sample_dir, image_name), cv2.IMREAD_GRAYSCALE)
-
-            synthesized_texture = synthesize_texture(original_sample=sample, 
-                                                    window_size=(args.window_height, args.window_width), 
-                                                    kernel_size=kernel)
-
-            if kernel == 5:
-                cv2.imwrite(os.path.join(args.out_dir, 'kernel_5', image_name), synthesized_texture)
-            elif kernel == 11:
-                cv2.imwrite(os.path.join(args.out_dir, 'kernel_11', image_name), synthesized_texture)
-            elif kernel == 15:
-                cv2.imwrite(os.path.join(args.out_dir, 'kernel_15', image_name), synthesized_texture)
-            elif kernel == 23:
-                cv2.imwrite(os.path.join(args.out_dir, 'kernel_23', image_name), synthesized_texture)
+    cv2.imwrite('./mnist_cat_synthesized.png', synthesized_texture)
 
 
 
